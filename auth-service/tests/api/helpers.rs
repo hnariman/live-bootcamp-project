@@ -29,4 +29,20 @@ impl TestApp {
             .await
             .expect("Failed to execute request")
     }
+    pub async fn get_route(&self, route: &str) -> reqwest::Response {
+        dbg!(&self.address);
+        self.http_client
+            .get(&format!("{}{}", &self.address, &route))
+            .send()
+            .await
+            .expect(format!("Familed to execute request to route: {:?}", route).as_str())
+    }
+    pub async fn post_route(&self, route: &str) -> reqwest::Response {
+        dbg!(&self.address);
+        self.http_client
+            .post(&format!("{}{}", &self.address, &route))
+            .send()
+            .await
+            .expect(format!("Familed to execute request to route: {:?}", route).as_str())
+    }
 }
