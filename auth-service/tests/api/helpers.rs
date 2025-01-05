@@ -29,6 +29,17 @@ impl TestApp {
             .await
             .expect("Failed to execute request")
     }
+    pub async fn post_signup<Body>(&self, body: &Body) -> reqwest::Response
+    where
+        Body: serde::Serialize,
+    {
+        self.http_client
+            .post(&format!("{}/signup", &self.address))
+            .json(body)
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
 
     pub async fn post_route(&self, route: &str) -> reqwest::Response {
         dbg!(&self.address);
@@ -38,4 +49,8 @@ impl TestApp {
             .await
             .expect(format!("Familed to execute request to route: {:?}", route).as_str())
     }
+}
+
+pub fn get_random_email() -> String {
+    format!("{}@example.com", uuid::Uuid::new_v4())
 }
