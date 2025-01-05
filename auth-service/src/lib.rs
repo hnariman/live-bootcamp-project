@@ -1,4 +1,10 @@
-use axum::{response::Html, routing::get, serve::Serve, Router};
+use axum::{
+    http::StatusCode,
+    response::{Html, IntoResponse},
+    routing::{get, post},
+    serve::Serve,
+    Router,
+};
 use tower_http::services::ServeDir;
 
 pub struct Application {
@@ -10,6 +16,7 @@ impl Application {
     pub async fn build(address: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let router = Router::new()
             .nest_service("/", ServeDir::new("assets"))
+            .route("/signup", post(signup))
             .route("/hello", get(hello_handler));
 
         let listener = tokio::net::TcpListener::bind(address).await?;
@@ -28,4 +35,8 @@ impl Application {
 
 async fn hello_handler() -> Html<&'static str> {
     Html("<h1>Mission Complete!</h1>")
+}
+
+async fn signup() -> impl IntoResponse {
+    StatusCode::OK.into_response()
 }
