@@ -1,6 +1,6 @@
 use axum::{
     http::StatusCode,
-    response::{Html, IntoResponse},
+    response::IntoResponse,
     routing::{get, post},
     serve::Serve,
     Router,
@@ -24,7 +24,7 @@ impl Application {
             .route("/logout", post(routes::logout))
             .route("/verify-token", post(routes::verify_token))
             .route("/verify-2fa", post(routes::verify_2fa))
-            .route("/hello", get(hello_handler));
+            .route("/hello", get(routes::hello_handler));
 
         let listener = tokio::net::TcpListener::bind(address).await?;
 
@@ -38,8 +38,4 @@ impl Application {
         println!("server is listening on {}", &self.address);
         self.server.await
     }
-}
-
-async fn hello_handler() -> Html<&'static str> {
-    Html("<h1>Mission Complete!</h1>")
 }
