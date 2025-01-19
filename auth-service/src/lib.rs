@@ -7,7 +7,9 @@ use axum::{
 };
 use tower_http::services::ServeDir;
 
+pub mod domain;
 pub mod routes;
+pub mod services;
 
 pub struct Application {
     server: Serve<Router, Router>,
