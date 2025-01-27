@@ -1,3 +1,4 @@
+use app_state::AppState;
 use axum::{
     http::StatusCode,
     response::IntoResponse,
@@ -7,6 +8,7 @@ use axum::{
 };
 use tower_http::services::ServeDir;
 
+pub mod app_state;
 pub mod domain;
 pub mod routes;
 pub mod services;
@@ -17,7 +19,10 @@ pub struct Application {
 }
 
 impl Application {
-    pub async fn build(address: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    pub async fn build(
+        app_state: AppState,
+        address: &str,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         let _response_200 = || async { StatusCode::OK.into_response() };
         let router = Router::new()
             .nest_service("/", ServeDir::new("assets"))
@@ -26,7 +31,8 @@ impl Application {
             .route("/logout", post(routes::logout))
             .route("/verify-token", post(routes::verify_token))
             .route("/verify-2fa", post(routes::verify_2fa))
-            .route("/hello", get(routes::hello_handler));
+            .route("/hello", get(routes::hello_handler))
+            .with_state(app_state);
 
         let listener = tokio::net::TcpListener::bind(address).await?;
 

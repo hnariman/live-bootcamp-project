@@ -1,8 +1,9 @@
-#[derive(Debug)]
+#[derive(thiserror::Error, Debug, PartialEq)]
 pub enum CreateUserError {
+    #[error("Invalid user")]
     InvalidPassword,
+    #[error("Invalid email")]
     InvalidEmail,
-    InvalidName,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -15,6 +16,10 @@ impl Email {
             return Err(CreateUserError::InvalidEmail);
         }
         Ok(Email(email.to_string()))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
     }
 }
 
@@ -31,6 +36,9 @@ impl Password {
         }
 
         Ok(Password(pas.to_string()))
+    }
+    pub fn as_str(&self) -> &str {
+        &self.0
     }
 }
 
@@ -53,26 +61,3 @@ impl User {
         })
     }
 }
-
-// struct Check {}
-//
-// impl Check {
-//     fn is_valid_email(email: &str) -> Result<&str, CreateUserError> {
-//         let valid_email = email.contains('@') && email.contains('.') && (email.len() > 5);
-//         if !valid_email {
-//             return Err(CreateUserError::InvalidEmail);
-//         }
-//         Ok(email)
-//     }
-//
-//     fn is_valid_password(pas: &str) -> Result<&str, CreateUserError> {
-//         let has_numbers = pas.chars().any(|c| c.is_numeric());
-//         let is_long_enough = pas.len() > 8;
-//
-//         if !has_numbers || !is_long_enough {
-//             return Err(CreateUserError::InvalidPassword);
-//         }
-//
-//         Ok(pas)
-//     }
-// }
