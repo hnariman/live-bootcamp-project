@@ -1,3 +1,5 @@
+// use thiserror_context::{impl_context, Context};
+
 #[derive(thiserror::Error, Debug, PartialEq)]
 pub enum CreateUserError {
     #[error("Invalid user")]
@@ -5,6 +7,7 @@ pub enum CreateUserError {
     #[error("Invalid email")]
     InvalidEmail,
 }
+// impl_context!(CreateUserError(CreateUserErrorInner));
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Email(String);
@@ -46,18 +49,22 @@ impl Password {
 pub struct User {
     pub email: Email,
     pub password: Password,
-    requires_2fa: bool,
+    pub requires_2fa: bool,
 }
 
 impl User {
-    pub fn new(email: &str, password: &str) -> Result<User, CreateUserError> {
+    pub fn new(email: &str, password: &str, requires2fa: bool) -> Result<User, CreateUserError> {
         let email = Email::from(email)?;
         let password = Password::from(password)?;
+        let requires_2fa = match Some(requires2fa) {
+            Some(val) => val,
+            None => true,
+        };
 
         Ok(User {
             email,
             password,
-            requires_2fa: true,
+            requires_2fa,
         })
     }
 }

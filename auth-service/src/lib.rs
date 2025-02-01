@@ -1,11 +1,13 @@
 use app_state::AppState;
 use axum::{
     http::StatusCode,
-    response::IntoResponse,
+    response::{IntoResponse, Response},
     routing::{get, post},
     serve::Serve,
-    Router,
+    Json, Router,
 };
+use domain::AuthAPIError;
+use serde::{Deserialize, Serialize};
 use tower_http::services::ServeDir;
 
 pub mod app_state;
@@ -45,5 +47,28 @@ impl Application {
     pub async fn run(self) -> Result<(), std::io::Error> {
         println!("server is listening on {}", &self.address);
         self.server.await
+    }
+}
+#[derive(Serialize, Deserialize)]
+pub struct ErrorResponse {
+    pub error: String,
+}
+
+impl IntoResponse for AuthAPIError {
+    fn into_response(self) -> Response {
+        let (status, error_message) = match self {
+            AuthAPIError::UserAlreadyExists => (StatusCode::CONFLICT, "User already exists"),
+            AuthAPIError::InvalidUserCredentials => {
+                (StatusCode::BAD_REQUEST, "Invalid credentials")
+            }
+            AuthAPIError::UnexpectedError => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "Invalid credentials")
+            }
+        };
+
+        let body = Json(ErrorResponse {
+            error: error_message.to_string(),
+        });
+        (status, body).into_response()
     }
 }

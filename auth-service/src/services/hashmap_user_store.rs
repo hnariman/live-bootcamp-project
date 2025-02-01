@@ -1,7 +1,7 @@
 #![warn(clippy::all, clippy::pedantic)]
 
 use crate::domain::{CreateUserError, Email, Password, User};
-use std::collections::HashMap;
+use std::collections::{hash_map::Entry, HashMap};
 
 #[derive(thiserror::Error, Debug, PartialEq)]
 pub enum UserStoreError {
@@ -24,23 +24,22 @@ pub struct HashmapUserStore {
 
 impl HashmapUserStore {
     pub fn add_user(&mut self, user: User) -> Result<(), UserStoreError> {
-        if self.users.contains_key(&user.email) {
-            return Err(UserStoreError::UserAlreadyExists);
+        // awesome ideomatic idea! make sure to remember and reuse it often!
+        match self.users.entry(user.email.clone()) {
+            Entry::Occupied(_) => Err(UserStoreError::UserAlreadyExists),
+            Entry::Vacant(entry) => {
+                entry.insert(user);
+                Ok(())
+            }
         }
-
-        self.users.entry(user.email.clone()).or_insert(user.clone());
-
-        if !self.users.contains_key(&user.email) {
-            return Err(UserStoreError::UnableToCreateUser);
-        }
-
-        Ok(())
     }
 
     pub fn get_user(&self, email: &str) -> Result<User, UserStoreError> {
         let email = Email::from(email)?;
-        let result = self.users.get(&email).unwrap();
-        Ok(result.clone())
+        match self.users.get(&email) {
+            Some(user) => Ok(user.clone()),
+            None => Err(UserStoreError::UserNotFound),
+        }
     }
 
     pub fn validate_user(&self, email: &str, password: &str) -> Result<(), UserStoreError> {
@@ -62,8 +61,8 @@ mod tests {
     #[tokio::test]
     pub async fn test_add_user() {
         let mut storage = HashmapUserStore::default();
-        let mock = User::new("hnariman@gmail.com", "123oi1u23").unwrap();
-        let mock2 = User::new("h.nariman@gmail.com", "123oi1u23").unwrap();
+        let mock = User::new("hnariman@gmail.com", "123oi1u23", false).unwrap();
+        let mock2 = User::new("h.nariman@gmail.com", "123oi1u23", false).unwrap();
         let _ = storage.add_user(mock);
         let _ = storage.add_user(mock2);
         assert_eq!(storage.users.len(), 2);
@@ -72,8 +71,8 @@ mod tests {
     #[tokio::test]
     pub async fn test_add_user_existing_user() {
         let mut storage = HashmapUserStore::default();
-        let mock = User::new("h.nariman@gmail.com", "123oi1u23").unwrap();
-        let mock2 = User::new("h.nariman@gmail.com", "123oi1u23").unwrap();
+        let mock = User::new("h.nariman@gmail.com", "123oi1u23", false).unwrap();
+        let mock2 = User::new("h.nariman@gmail.com", "123oi1u23", false).unwrap();
         let _ = storage.add_user(mock);
         let expected = storage.add_user(mock2).map_err(|e| e);
 
@@ -82,20 +81,20 @@ mod tests {
 
     #[tokio::test]
     pub async fn test_add_user_short_password() {
-        let expected = User::new("h.nariman@gmail.com", "123").map_err(|e| e);
+        let expected = User::new("h.nariman@gmail.com", "123", false).map_err(|e| e);
         assert_eq!(expected, Err(CreateUserError::InvalidPassword));
     }
 
     #[tokio::test]
     pub async fn test_add_user_invalid_email() {
-        let expected = User::new("h.narimangmail.com", "123").map_err(|e| e);
+        let expected = User::new("h.narimangmail.com", "123", false).map_err(|e| e);
         assert_eq!(expected, Err(CreateUserError::InvalidEmail));
     }
 
     #[tokio::test]
     pub async fn test_get_user() {
         let mut storage = HashmapUserStore::default();
-        let mock = User::new("tnariman@gmail.com", "123oi1u23").unwrap();
+        let mock = User::new("tnariman@gmail.com", "123oi1u23", false).unwrap();
 
         storage.add_user(mock.clone()).ok();
 
@@ -107,7 +106,7 @@ mod tests {
     #[tokio::test]
     pub async fn test_validate_user_shall_throw_invalid_credentials() {
         let mut storage = HashmapUserStore::default();
-        let mock = User::new("hnariman@gmail.com", "123asdf987234").unwrap();
+        let mock = User::new("hnariman@gmail.com", "123asdf987234", false).unwrap();
         storage.users.insert(mock.email.clone(), mock);
 
         let validation_result = storage
@@ -121,7 +120,7 @@ mod tests {
     #[tokio::test]
     pub async fn test_validate_user_shall_throw_user_not_found_wrong_email() {
         let mut storage = HashmapUserStore::default();
-        let mock = User::new("hnariman@gmail.com", "123asdf987234").unwrap();
+        let mock = User::new("hnariman@gmail.com", "123asdf987234", false).unwrap();
         storage.users.insert(mock.email.clone(), mock);
 
         let validation_result = storage

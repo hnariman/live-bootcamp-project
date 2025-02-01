@@ -1,49 +1,41 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde::{Deserialize, Serialize};
 
-use crate::{app_state::AppState, domain::User};
+use crate::{
+    app_state::AppState,
+    domain::{AuthAPIError, Email, Password, User},
+    services::UserStoreError,
+};
 
-fn bad_request() -> (StatusCode, Json<SignupResponse>) {
-    (
-        StatusCode::BAD_REQUEST,
-        Json(SignupResponse {
-            message: "Bad request".to_string(),
-        }),
-    )
-}
 #[axum::debug_handler]
 pub async fn signup(
     State(state): State<AppState>,
     Json(_request): Json<SignupRequest>,
-) -> impl IntoResponse {
-    let user = match User::new(&_request.email, &_request.password) {
-        Ok(user) => user,
-        Err(_) => return bad_request(),
-    };
+) -> Result<impl IntoResponse, AuthAPIError> {
+    let email = Email::from(&_request.email).map_err(|_| AuthAPIError::InvalidUserCredentials)?;
 
+    let password =
+        Password::from(&_request.password).map_err(|_| AuthAPIError::InvalidUserCredentials)?;
+
+    let user = User::new(email.as_str(), password.as_str(), _request.requires_2fa);
+    let user = user.map_err(|_| AuthAPIError::UnexpectedError)?;
+
+    // we don't unlock mutex unless validation is ok
     let mut user_store = state.user_store.write().await;
 
-    match user_store.add_user(user) {
-        Err(_) => return bad_request(),
-        Ok(_) => print!("allok"),
-    }
-
-    // let data = state.user_store.read().await;
-    // dbg!(&data);
-    // drop(data);
-
-    // if user_store.add_user(user).is_err() {
-    //     return bad_request();
-    // }
+    user_store.add_user(user).map_err(|e| match e {
+        UserStoreError::UserAlreadyExists => AuthAPIError::UserAlreadyExists,
+        _ => AuthAPIError::UnexpectedError,
+    })?;
 
     let response = Json(SignupResponse {
         message: "User created successfully!".to_string(),
     });
 
-    (StatusCode::CREATED, response)
+    Ok((StatusCode::CREATED, response))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct SignupRequest {
     pub email: String,
     pub password: String,
@@ -51,7 +43,7 @@ pub struct SignupRequest {
     pub requires_2fa: bool,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct SignupResponse {
     pub message: String,
 }

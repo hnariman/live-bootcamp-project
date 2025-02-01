@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use auth_service::{
     app_state::{AppState, UserStoreType},
+    domain::{Email, Password, User},
     services::HashmapUserStore,
     Application,
 };
@@ -14,7 +15,17 @@ pub struct TestApp {
 
 impl TestApp {
     pub async fn new() -> Self {
-        let user_store: UserStoreType = Arc::new(RwLock::new(HashmapUserStore::default()));
+        let mut mock_store = HashmapUserStore::default();
+
+        let _existing_user = User::new(
+            Email::from("existing@user.com").unwrap().as_str(),
+            Password::from("1234qwer1234").unwrap().as_str(),
+            true,
+        )
+        .unwrap();
+        mock_store.add_user(_existing_user).unwrap();
+
+        let user_store: UserStoreType = Arc::new(RwLock::new(mock_store));
         let mock_state = AppState::new(user_store);
 
         let app = Application::build(mock_state, "127.0.0.1:0")
@@ -52,7 +63,6 @@ impl TestApp {
     }
 
     pub async fn post_route(&self, route: &str) -> reqwest::Response {
-        dbg!(&self.address);
         self.http_client
             .post(&format!("{}{}", &self.address, &route))
             .send()
