@@ -3,8 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     app_state::AppState,
-    domain::{AuthAPIError, Email, Password, User},
-    services::UserStoreError,
+    domain::{AuthAPIError, Email, Password, User, UserStore, UserStoreError},
 };
 
 #[axum::debug_handler]
@@ -23,7 +22,7 @@ pub async fn signup(
     // we don't unlock mutex unless validation is ok
     let mut user_store = state.user_store.write().await;
 
-    user_store.add_user(user).map_err(|e| match e {
+    user_store.add_user(user).await.map_err(|e| match e {
         UserStoreError::UserAlreadyExists => AuthAPIError::UserAlreadyExists,
         _ => AuthAPIError::UnexpectedError,
     })?;

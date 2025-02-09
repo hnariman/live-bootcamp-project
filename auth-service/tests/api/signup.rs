@@ -64,9 +64,11 @@ async fn should_return_400_if_invalid_input() {
 async fn should_return_409_if_email_already_exists() {
     let app = TestApp::new().await;
 
-    let test_cases = [
-        serde_json::json!( { "email":"existing@user.com", "password":"1234qwer1234", "requires2FA":true }),
-    ];
+    let test_cases = [serde_json::json!( {
+        "email":"existing@user.com",
+        "password":"1234qwer1234",
+        "requires2FA":true
+    })];
 
     for each in test_cases.iter() {
         let response = app.post_signup(each).await;

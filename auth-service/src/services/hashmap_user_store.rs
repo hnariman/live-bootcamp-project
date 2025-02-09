@@ -1,31 +1,21 @@
 #![warn(clippy::all, clippy::pedantic)]
 
-use crate::domain::{CreateUserError, Email, Password, User};
-use std::collections::{hash_map::Entry, HashMap};
+use crate::domain::{Email, Password, User, UserStore, UserStoreError};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    sync::{Arc, Mutex},
+};
 
-#[derive(thiserror::Error, Debug, PartialEq)]
-pub enum UserStoreError {
-    #[error("User already exists")]
-    UserAlreadyExists,
-    #[error("User not found")]
-    UserNotFound,
-    #[error("Invalid credentials")]
-    InvalidCredentials,
-    #[error("Something went wrong")]
-    UnexpectedError(#[from] CreateUserError),
-    #[error("invalid user")]
-    UnableToCreateUser,
-}
-
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct HashmapUserStore {
-    pub users: HashMap<Email, User>,
+    pub users: Arc<Mutex<HashMap<Email, User>>>,
 }
 
-impl HashmapUserStore {
-    pub fn add_user(&mut self, user: User) -> Result<(), UserStoreError> {
+#[async_trait::async_trait]
+impl UserStore for HashmapUserStore {
+    async fn add_user(&mut self, user: User) -> Result<(), UserStoreError> {
         // awesome ideomatic idea! make sure to remember and reuse it often!
-        match self.users.entry(user.email.clone()) {
+        match self.users.lock().unwrap().entry(user.email.clone()) {
             Entry::Occupied(_) => Err(UserStoreError::UserAlreadyExists),
             Entry::Vacant(entry) => {
                 entry.insert(user);
@@ -34,47 +24,58 @@ impl HashmapUserStore {
         }
     }
 
-    pub fn get_user(&self, email: &str) -> Result<User, UserStoreError> {
+    async fn get_user(&self, email: &str) -> Result<User, UserStoreError> {
         let email = Email::from(email)?;
-        match self.users.get(&email) {
+        match self.users.lock().unwrap().get(&email) {
             Some(user) => Ok(user.clone()),
             None => Err(UserStoreError::UserNotFound),
         }
     }
 
-    pub fn validate_user(&self, email: &str, password: &str) -> Result<(), UserStoreError> {
+    async fn validate_user(
+        &self,
+        email: &'static str,
+        password: &str,
+    ) -> Result<(), UserStoreError> {
         let email = Email::from(email)?;
-        let password = Password::from(password)?;
-        let user = self.users.get(&email).ok_or(UserStoreError::UserNotFound)?;
+        let _password = Password::from(password)?;
 
-        if user.password.as_str() != password.as_str() {
-            return Err(UserStoreError::InvalidCredentials);
+        match self.users.lock().unwrap().entry(email.clone()) {
+            Entry::Occupied(u) => {
+                if _password != u.get().password {
+                    Err(UserStoreError::InvalidCredentials)
+                } else {
+                    Ok(())
+                }
+            }
+            Entry::Vacant(_) => Err(UserStoreError::UserNotFound),
         }
-        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::CreateUserError;
 
     #[tokio::test]
     pub async fn test_add_user() {
         let mut storage = HashmapUserStore::default();
         let mock = User::new("hnariman@gmail.com", "123oi1u23", false).unwrap();
         let mock2 = User::new("h.nariman@gmail.com", "123oi1u23", false).unwrap();
-        let _ = storage.add_user(mock);
-        let _ = storage.add_user(mock2);
-        assert_eq!(storage.users.len(), 2);
+        let _added_mock = storage.add_user(mock).await;
+        let _added_mock2 = storage.add_user(mock2).await;
+
+        assert_eq!(storage.users.lock().unwrap().len(), 2);
     }
 
     #[tokio::test]
-    pub async fn test_add_user_existing_user() {
+    async fn test_add_user_existing_user() {
         let mut storage = HashmapUserStore::default();
         let mock = User::new("h.nariman@gmail.com", "123oi1u23", false).unwrap();
         let mock2 = User::new("h.nariman@gmail.com", "123oi1u23", false).unwrap();
-        let _ = storage.add_user(mock);
-        let expected = storage.add_user(mock2).map_err(|e| e);
+        let _added_mock = storage.add_user(mock).await;
+        let expected = storage.add_user(mock2).await;
 
         assert_eq!(expected, Err(UserStoreError::UserAlreadyExists));
     }
@@ -95,23 +96,28 @@ mod tests {
     pub async fn test_get_user() {
         let mut storage = HashmapUserStore::default();
         let mock = User::new("tnariman@gmail.com", "123oi1u23", false).unwrap();
+        let _added_mock = storage.add_user(mock.clone()).await;
 
-        storage.add_user(mock.clone()).ok();
-
-        let found = storage.get_user(&mock.email.as_str()).unwrap();
+        let found = storage.get_user(&mock.email.as_str()).await.unwrap();
 
         assert_eq!(found, mock);
     }
 
     #[tokio::test]
     pub async fn test_validate_user_shall_throw_invalid_credentials() {
-        let mut storage = HashmapUserStore::default();
+        let storage = HashmapUserStore::default();
         let mock = User::new("hnariman@gmail.com", "123asdf987234", false).unwrap();
-        storage.users.insert(mock.email.clone(), mock);
+
+        storage
+            .users
+            .lock()
+            .unwrap()
+            .insert(mock.email.clone(), mock);
 
         let validation_result = storage
             .validate_user("hnariman@gmail.com", "123asdf98723")
-            .map_err(|e| e);
+            .await;
+
         let expected = Err(UserStoreError::InvalidCredentials);
 
         assert_eq!(validation_result, expected);
@@ -119,13 +125,19 @@ mod tests {
 
     #[tokio::test]
     pub async fn test_validate_user_shall_throw_user_not_found_wrong_email() {
-        let mut storage = HashmapUserStore::default();
-        let mock = User::new("hnariman@gmail.com", "123asdf987234", false).unwrap();
-        storage.users.insert(mock.email.clone(), mock);
+        let email = "testing@gmail.com";
+        let pass = "123asldkfj123";
+        let storage = HashmapUserStore::default();
 
-        let validation_result = storage
-            .validate_user("nariman@gmail.com", "123asdf987234")
-            .map_err(|e| e);
+        let mock = User::new(email, pass, false).expect("unable to create mock user for test");
+
+        storage
+            .users
+            .lock()
+            .unwrap()
+            .insert(mock.email.clone(), mock);
+
+        let validation_result = storage.validate_user("testingssss@gmail.com", pass).await;
         let expected = Err(UserStoreError::UserNotFound);
 
         assert_eq!(validation_result, expected);

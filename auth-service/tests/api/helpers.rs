@@ -6,6 +6,8 @@ use auth_service::{
     services::HashmapUserStore,
     Application,
 };
+
+use auth_service::domain::UserStore;
 use tokio::sync::RwLock;
 
 pub struct TestApp {
@@ -22,8 +24,9 @@ impl TestApp {
             Password::from("1234qwer1234").unwrap().as_str(),
             true,
         )
-        .unwrap();
-        mock_store.add_user(_existing_user).unwrap();
+        .expect("unable to created existing user for tests");
+
+        let _ = mock_store.add_user(_existing_user).await;
 
         let user_store: UserStoreType = Arc::new(RwLock::new(mock_store));
         let mock_state = AppState::new(user_store);
@@ -63,6 +66,7 @@ impl TestApp {
     }
 
     pub async fn post_route(&self, route: &str) -> reqwest::Response {
+        dbg!(&self.address);
         self.http_client
             .post(&format!("{}{}", &self.address, &route))
             .send()
