@@ -78,6 +78,18 @@ impl TestApp {
             .await
             .expect(format!("Familed to execute request to route: {:?}", route).as_str())
     }
+
+    pub async fn post_login<Body>(&self, body: &Body) -> reqwest::Response
+    where
+        Body: serde::Serialize,
+    {
+        self.http_client
+            .post(&format!("{}/login", &self.address))
+            .json(body)
+            .send()
+            .await
+            .expect("Failed to execute post login request")
+    }
 }
 
 pub fn get_random_email() -> String {
