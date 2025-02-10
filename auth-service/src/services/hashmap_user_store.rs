@@ -25,7 +25,7 @@ impl UserStore for HashmapUserStore {
     }
 
     async fn get_user(&self, email: &str) -> Result<User, UserStoreError> {
-        let email = Email::from(email)?;
+        let email = Email::parse(email)?;
         match self.users.lock().unwrap().get(&email) {
             Some(user) => Ok(user.clone()),
             None => Err(UserStoreError::UserNotFound),
@@ -37,8 +37,8 @@ impl UserStore for HashmapUserStore {
         email: &'static str,
         password: &str,
     ) -> Result<(), UserStoreError> {
-        let email = Email::from(email)?;
-        let _password = Password::from(password)?;
+        let email = Email::parse(email)?;
+        let _password = Password::parse(password)?;
 
         match self.users.lock().unwrap().entry(email.clone()) {
             Entry::Occupied(u) => {
@@ -55,8 +55,9 @@ impl UserStore for HashmapUserStore {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::domain::CreateUserError;
+
+    use super::*;
 
     #[tokio::test]
     pub async fn test_add_user() {

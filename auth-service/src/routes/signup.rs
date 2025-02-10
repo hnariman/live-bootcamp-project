@@ -11,15 +11,14 @@ pub async fn signup(
     State(state): State<AppState>,
     Json(_request): Json<SignupRequest>,
 ) -> Result<impl IntoResponse, AuthAPIError> {
-    let email = Email::from(&_request.email).map_err(|_| AuthAPIError::InvalidUserCredentials)?;
+    let email = Email::parse(&_request.email).map_err(|_| AuthAPIError::InvalidUserCredentials)?;
 
     let password =
-        Password::from(&_request.password).map_err(|_| AuthAPIError::InvalidUserCredentials)?;
+        Password::parse(&_request.password).map_err(|_| AuthAPIError::InvalidUserCredentials)?;
 
     let user = User::new(email.as_str(), password.as_str(), _request.requires_2fa);
     let user = user.map_err(|_| AuthAPIError::UnexpectedError)?;
 
-    // we don't unlock mutex unless validation is ok
     let mut user_store = state.user_store.write().await;
 
     user_store.add_user(user).await.map_err(|e| match e {

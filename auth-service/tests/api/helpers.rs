@@ -20,13 +20,18 @@ impl TestApp {
         let mut mock_store = HashmapUserStore::default();
 
         let _existing_user = User::new(
-            Email::from("existing@user.com").unwrap().as_str(),
-            Password::from("1234qwer1234").unwrap().as_str(),
+            Email::parse("existing@user.com").unwrap().as_str(),
+            Password::parse("!@#(*$&#!234234alsdkj!@#")
+                .unwrap()
+                .as_str(),
             true,
         )
         .expect("unable to created existing user for tests");
 
-        let _ = mock_store.add_user(_existing_user).await;
+        let _ = match mock_store.add_user(_existing_user).await {
+            Ok(_) => Ok(()),
+            Err(_) => Err("Internal server error, mutex guard failed with poison mutex"),
+        };
 
         let user_store: UserStoreType = Arc::new(RwLock::new(mock_store));
         let mock_state = AppState::new(user_store);

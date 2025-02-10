@@ -30,7 +30,7 @@ async fn should_return_201_if_valid_input() {
     let app = TestApp::new().await;
 
     let test_cases = [serde_json::json!(
-        { "email":"fast@gmail.com", "password":"123lkjslkdfjlaskdjf", "requires2FA":false }
+        { "email":"fast@gmail.com", "password":"123lkjslk##dfj@@laskdjf", "requires2FA":false }
     )];
 
     for each in test_cases.iter() {
@@ -66,7 +66,7 @@ async fn should_return_409_if_email_already_exists() {
 
     let test_cases = [serde_json::json!( {
         "email":"existing@user.com",
-        "password":"1234qwer1234",
+        "password":"1234!@#$@!#$(&*&*qwer1234",
         "requires2FA":true
     })];
 

@@ -7,3 +7,11 @@ pub enum AuthAPIError {
     // #[error("unexpected error")]
     UnexpectedError,
 }
+
+#[derive(thiserror::Error, Debug, PartialEq)]
+pub enum CreateUserError {
+    #[error("Invalid user")]
+    InvalidPassword,
+    #[error("Invalid email")]
+    InvalidEmail,
+}
