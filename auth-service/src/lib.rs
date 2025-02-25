@@ -1,6 +1,6 @@
 use app_state::AppState;
 use axum::{
-    http::StatusCode,
+    http::{Method, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
     serve::Serve,
@@ -8,12 +8,13 @@ use axum::{
 };
 use domain::AuthAPIError;
 use serde::{Deserialize, Serialize};
-use tower_http::services::ServeDir;
+use tower_http::{cors::CorsLayer, services::ServeDir};
 
 pub mod app_state;
 pub mod domain;
 pub mod routes;
 pub mod services;
+pub mod utils;
 
 pub struct Application {
     server: Serve<Router, Router>,
@@ -25,6 +26,16 @@ impl Application {
         app_state: AppState,
         address: &str,
     ) -> Result<Self, Box<dyn std::error::Error>> {
+        let allowed_origins = [
+            "http://localhost:8000".parse()?,
+            "http://[droplet_api]:8000".parse()?,
+        ];
+
+        let cors = CorsLayer::new()
+            .allow_methods([Method::GET, Method::POST])
+            .allow_credentials(true)
+            .allow_origin(allowed_origins);
+
         let _response_200 = || async { StatusCode::OK.into_response() };
         let router = Router::new()
             .nest_service("/", ServeDir::new("assets"))
@@ -34,7 +45,8 @@ impl Application {
             .route("/verify-token", post(routes::verify_token))
             .route("/verify-2fa", post(routes::verify_2fa))
             .route("/hello", get(routes::hello_handler))
-            .with_state(app_state);
+            .with_state(app_state)
+            .layer(cors);
 
         let listener = tokio::net::TcpListener::bind(address).await?;
 
@@ -57,16 +69,21 @@ pub struct ErrorResponse {
 impl IntoResponse for AuthAPIError {
     fn into_response(self) -> Response {
         let (status, error_message) = match self {
-            AuthAPIError::UserAlreadyExists => (StatusCode::CONFLICT, "User already exists"),
+            AuthAPIError::UserAlreadyExists => (StatusCode::CONFLICT, "User already exists"), // 409
             AuthAPIError::InvalidUserCredentials => {
-                (StatusCode::BAD_REQUEST, "Invalid credentials")
+                (StatusCode::BAD_REQUEST, "Invalid credentials") // 400
             }
-            AuthAPIError::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized"),
+            AuthAPIError::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized"), // 401
 
             AuthAPIError::UnexpectedError => {
-                (StatusCode::INTERNAL_SERVER_ERROR, "Invalid credentials")
+                (StatusCode::INTERNAL_SERVER_ERROR, "Invalid credentials") // 500
             }
-            AuthAPIError::UserNotFound => (StatusCode::UNPROCESSABLE_ENTITY, "bas request"),
+            AuthAPIError::UserNotFound => (StatusCode::UNPROCESSABLE_ENTITY, "bas request"), // 422
+            AuthAPIError::InvalidCredentials => {
+                (StatusCode::UNPROCESSABLE_ENTITY, "invalid user credentials")
+            } // 422
+            AuthAPIError::InvalidToken => (StatusCode::UNAUTHORIZED, "Invalid token"),       // 401
+            AuthAPIError::MissingToken => (StatusCode::BAD_REQUEST, "Missing token"),        // 400
         };
 
         let body = Json(ErrorResponse {

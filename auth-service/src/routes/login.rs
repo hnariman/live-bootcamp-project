@@ -1,8 +1,11 @@
 use crate::{
     app_state::AppState,
-    domain::{AuthAPIError, CreateUserError, Email, UserStore, UserStoreError},
+    domain::{AuthAPIError, Email, Password, UserStore},
+    // domain::{AuthAPIError, CreateUserError, Email, Password, User, UserStore, UserStoreError},
+    utils::auth::generate_auth_cookie,
 };
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Debug)]
@@ -16,33 +19,46 @@ pub struct LoginResponse {
     pub email: String,
 }
 
-// It's a good place to handle all propagated errors
-// since we have the most context here
+// #[axum::debug_handler]
 pub async fn login(
     State(_state): State<AppState>,
+    jar: CookieJar,
     Json(_request): Json<LoginRequest>,
-) -> Result<impl IntoResponse, AuthAPIError> {
-    let store = _state.user_store.read().await;
-    // If JSON is missing or malformed -> 422
-    // If JSON contains invalid credentials -> 400
-    // If JSON contains credentials that are valid but incorrect -> 401
+) -> Result<(CookieJar, impl IntoResponse), AuthAPIError> {
+    let email = _request.email;
+    let password = _request.password;
 
-    dbg!(&_request);
-    let _email = Email::parse(&_request.email).map_err(|_| AuthAPIError::InvalidUserCredentials);
-    let _passw = Email::parse(&_request.password).map_err(|_| AuthAPIError::InvalidUserCredentials);
+    let malformed = email.is_empty() || password.is_empty();
 
-    match store.get_user(&_request.email).await {
-        Ok(data) => Ok((
-            StatusCode::OK,
-            Json(LoginResponse {
-                email: String::from(data.email.as_str()),
-            }),
-        )),
-        Err(UserStoreError::UserNotFound) => Err(AuthAPIError::UserNotFound),
-        Err(UserStoreError::UnexpectedError(creds_error)) => match creds_error {
-            CreateUserError::InvalidEmail => Err(AuthAPIError::Unauthorized),
-            CreateUserError::InvalidPassword => Err(AuthAPIError::Unauthorized),
-        },
-        _ => Err(AuthAPIError::UnexpectedError),
+    if malformed {
+        return Err(AuthAPIError::InvalidCredentials);
     }
+
+    let email = Email::parse(&email).map_err(|e| {
+        eprint!("email error: {:?}", e);
+        AuthAPIError::InvalidCredentials
+    })?;
+    let password = Password::parse(&password).map_err(|_| AuthAPIError::InvalidUserCredentials)?;
+
+    let db = _state.user_store.read().await;
+
+    if db
+        .validate_user(email.as_ref(), password.as_ref())
+        .await
+        .is_err()
+    {
+        return Err(AuthAPIError::Unauthorized);
+    };
+
+    let user = db
+        .get_user(email.as_ref())
+        .await
+        .map_err(|_| AuthAPIError::Unauthorized)?;
+
+    let auth_cookie =
+        generate_auth_cookie(&user.email).map_err(|_| AuthAPIError::UnexpectedError)?;
+
+    let authorized = &jar.add(auth_cookie);
+
+    Ok((authorized.clone(), StatusCode::OK.into_response()))
 }

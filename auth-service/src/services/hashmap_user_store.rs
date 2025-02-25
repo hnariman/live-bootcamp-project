@@ -32,17 +32,13 @@ impl UserStore for HashmapUserStore {
         }
     }
 
-    async fn validate_user(
-        &self,
-        email: &'static str,
-        password: &str,
-    ) -> Result<(), UserStoreError> {
-        let email = Email::parse(email)?;
-        let _password = Password::parse(password)?;
+    async fn validate_user(&self, email: &str, password: &str) -> Result<(), UserStoreError> {
+        let email = Email::parse(&email)?;
+        let password = Password::parse(&password)?;
 
-        match self.users.lock().unwrap().entry(email.clone()) {
+        match self.users.lock().unwrap().entry(email) {
             Entry::Occupied(u) => {
-                if _password != u.get().password {
+                if password != u.get().password {
                     Err(UserStoreError::InvalidCredentials)
                 } else {
                     Ok(())
@@ -99,7 +95,7 @@ mod tests {
         let mock = User::new("tnariman@gmail.com", "123oi1u23", false).unwrap();
         let _added_mock = storage.add_user(mock.clone()).await;
 
-        let found = storage.get_user(&mock.email.as_str()).await.unwrap();
+        let found = storage.get_user(mock.email.as_ref()).await.unwrap();
 
         assert_eq!(found, mock);
     }

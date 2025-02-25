@@ -16,8 +16,8 @@ pub async fn signup(
     let password =
         Password::parse(&_request.password).map_err(|_| AuthAPIError::InvalidUserCredentials)?;
 
-    let user = User::new(email.as_str(), password.as_str(), _request.requires_2fa);
-    let user = user.map_err(|_| AuthAPIError::UnexpectedError)?;
+    let user = User::new(email.as_ref(), password.as_ref(), _request.requires_2fa)
+        .map_err(|_| AuthAPIError::UnexpectedError)?;
 
     let mut user_store = state.user_store.write().await;
 

@@ -4,11 +4,7 @@ use super::{CreateUserError, User};
 pub trait UserStore: Send + Sync {
     async fn add_user(&mut self, _user: User) -> Result<(), UserStoreError>;
     async fn get_user(&self, _email: &str) -> Result<User, UserStoreError>;
-    async fn validate_user(
-        &self,
-        _email: &'static str,
-        _password: &str,
-    ) -> Result<(), UserStoreError>;
+    async fn validate_user(&self, _email: &str, _password: &str) -> Result<(), UserStoreError>;
 }
 
 #[derive(thiserror::Error, Debug, PartialEq)]

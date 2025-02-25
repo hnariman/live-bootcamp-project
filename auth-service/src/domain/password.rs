@@ -1,5 +1,6 @@
 use validator::HasLen;
-use zxcvbn::{zxcvbn, Score};
+// use zxcvbn::{zxcvbn, Score};
+use zxcvbn::zxcvbn;
 
 use super::CreateUserError;
 
@@ -13,17 +14,23 @@ impl Password {
             return Err(CreateUserError::InvalidPassword);
         }
 
-        let password_strength = zxcvbn(pas, &[]);
+        let _password_strength = zxcvbn(pas, &[]);
 
-        if password_strength.score() < Score::Two {
-            eprintln!("try a stronger password");
-            return Err(CreateUserError::InvalidPassword);
-        }
+        // if password_strength.score() < Score::Two {
+        //     eprintln!("try a stronger password");
+        //     return Err(CreateUserError::InvalidPassword);
+        // }
 
         Ok(Password(pas.to_string()))
     }
 
-    pub fn as_str(&self) -> &str {
+    // pub fn as_str(&self) -> &str {
+    //     &self.0
+    // }
+}
+
+impl AsRef<str> for Password {
+    fn as_ref(&self) -> &str {
         &self.0
     }
 }

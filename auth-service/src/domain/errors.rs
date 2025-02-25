@@ -5,11 +5,17 @@ pub enum AuthAPIError {
     #[error("invalid user credentials")]
     InvalidUserCredentials,
     #[error("unexpected error")]
+    InvalidCredentials,
+    #[error("invalid credentials")]
     UnexpectedError,
     #[error("user not found")]
     UserNotFound,
     #[error("unauthorized")]
     Unauthorized,
+    #[error("missing token")]
+    MissingToken,
+    #[error("invalid token")]
+    InvalidToken,
 }
 
 #[derive(thiserror::Error, Debug, PartialEq)]

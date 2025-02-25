@@ -4,14 +4,17 @@ use auth_service::{
     app_state::{AppState, UserStoreType},
     domain::{Email, Password, User},
     services::HashmapUserStore,
+    utils::constants::test,
     Application,
 };
 
 use auth_service::domain::UserStore;
+use reqwest::cookie::Jar;
 use tokio::sync::RwLock;
 
 pub struct TestApp {
     pub address: String,
+    pub cookie_jar: Arc<Jar>,
     pub http_client: reqwest::Client,
 }
 
@@ -20,23 +23,23 @@ impl TestApp {
         let mut mock_store = HashmapUserStore::default();
 
         let _existing_user = User::new(
-            Email::parse("existing@user.com").unwrap().as_str(),
+            Email::parse("existing@user.com").unwrap().as_ref(),
             Password::parse("!@#(*$&#!234234alsdkj!@#")
                 .unwrap()
-                .as_str(),
+                .as_ref(),
             true,
         )
         .expect("unable to created existing user for tests");
 
-        let _ = match mock_store.add_user(_existing_user).await {
-            Ok(_) => Ok(()),
-            Err(_) => Err("Internal server error, mutex guard failed with poison mutex"),
-        };
+        mock_store
+            .add_user(_existing_user)
+            .await
+            .expect("unable to add mock user");
 
         let user_store: UserStoreType = Arc::new(RwLock::new(mock_store));
         let mock_state = AppState::new(user_store);
 
-        let app = Application::build(mock_state, "127.0.0.1:0")
+        let app = Application::build(mock_state, test::APP_ADDRESS)
             .await
             .expect("Failed to build app");
 
@@ -44,9 +47,16 @@ impl TestApp {
 
         #[allow(clippy::let_underscore_future)]
         let _ = tokio::spawn(app.run());
-        let http_client = reqwest::Client::new();
+
+        let cookie_jar = Arc::new(Jar::default());
+        let http_client = reqwest::Client::builder()
+            .cookie_provider(cookie_jar.clone())
+            .build()
+            .unwrap();
+
         TestApp {
             address,
+            cookie_jar,
             http_client,
         }
     }
@@ -77,6 +87,18 @@ impl TestApp {
             .send()
             .await
             .expect(format!("Familed to execute request to route: {:?}", route).as_str())
+    }
+
+    pub async fn post_logout<Body>(&self, body: &Body) -> reqwest::Response
+    where
+        Body: serde::Serialize,
+    {
+        self.http_client
+            .post(&format!("{}/logout", &self.address))
+            .json(body)
+            .send()
+            .await
+            .expect("Failed to execute post logout request")
     }
 
     pub async fn post_login<Body>(&self, body: &Body) -> reqwest::Response

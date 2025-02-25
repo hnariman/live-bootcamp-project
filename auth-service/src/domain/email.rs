@@ -21,9 +21,9 @@ impl Email {
         }
     }
 
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
+    // pub fn as_str(&self) -> &str {
+    //     &self.0
+    // }
 }
 
 impl AsRef<str> for Email {
