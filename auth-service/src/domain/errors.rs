@@ -16,6 +16,8 @@ pub enum AuthAPIError {
     MissingToken,
     #[error("invalid token")]
     InvalidToken,
+    #[error("malformed token")]
+    MalformedToken,
 }
 
 #[derive(thiserror::Error, Debug, PartialEq)]

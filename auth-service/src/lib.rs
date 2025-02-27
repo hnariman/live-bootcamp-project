@@ -84,6 +84,7 @@ impl IntoResponse for AuthAPIError {
             } // 422
             AuthAPIError::InvalidToken => (StatusCode::UNAUTHORIZED, "Invalid token"),       // 401
             AuthAPIError::MissingToken => (StatusCode::BAD_REQUEST, "Missing token"),        // 400
+            AuthAPIError::MalformedToken => (StatusCode::UNPROCESSABLE_ENTITY, "Malformed token"), // 422
         };
 
         let body = Json(ErrorResponse {

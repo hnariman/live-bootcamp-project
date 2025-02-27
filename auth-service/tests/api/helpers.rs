@@ -5,7 +5,7 @@ use auth_service::{
     domain::{Email, Password, User},
     services::HashmapUserStore,
     utils::constants::test,
-    Application,
+    Application, ErrorResponse,
 };
 
 use auth_service::domain::UserStore;
@@ -80,6 +80,18 @@ impl TestApp {
             .expect("Failed to execute request.")
     }
 
+    pub async fn post_verify_token<Body>(&self, body: &Body) -> reqwest::Response
+    where
+        Body: serde::Serialize,
+    {
+        self.http_client
+            .post(&format!("{}/verify-token", &self.address))
+            .json(body)
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
+
     pub async fn post_route(&self, route: &str) -> reqwest::Response {
         dbg!(&self.address);
         self.http_client
@@ -116,4 +128,36 @@ impl TestApp {
 
 pub fn get_random_email() -> String {
     format!("{}@example.com", uuid::Uuid::new_v4())
+}
+
+pub async fn signup(app: &TestApp, user: &User) {
+    eprintln!("==================================================== signup attempt");
+    let signup_body = serde_json::json!({
+        "email": user.email.as_ref(),
+        "password": user.password.as_ref(),
+        "requires2FA": user.requires_2fa
+    });
+
+    let response = app.post_signup(&signup_body).await;
+    assert_eq!(response.status().as_u16(), 201);
+}
+
+pub async fn login(app: &TestApp, user: &User) -> reqwest::Response {
+    eprintln!("==================================================== login attempt");
+    let login_body = serde_json::json!({
+        "email": user.email.as_ref(),
+        "password": user.password.as_ref()
+    });
+
+    let response = app.post_login(&login_body).await;
+
+    assert_eq!(response.status().as_u16(), 200);
+    response
+}
+
+pub async fn get_error(res: reqwest::Response) -> String {
+    res.json::<ErrorResponse>()
+        .await
+        .expect("Could not serialize body to Error Response")
+        .error
 }
