@@ -1,5 +1,9 @@
 use crate::helpers::{get_random_email, TestApp};
-use auth_service::{domain::User, utils::constants::JWT_COOKIE_NAME, ErrorResponse};
+use auth_service::{
+    domain::{BannedTokenError, BannedTokenStore, User},
+    utils::constants::JWT_COOKIE_NAME,
+    ErrorResponse,
+};
 use reqwest::Url;
 
 #[tokio::test]
@@ -63,16 +67,23 @@ async fn should_return_200_if_valid_jwt_cookie() {
 
     let response = login(&app, &user).await;
 
-    let auth_cookie = response
+    let token = response
         .cookies()
         .find(|cookie| cookie.name() == JWT_COOKIE_NAME)
         .expect("No auth cookie found");
 
-    eprintln!("===Cookies=== \n {:?}", auth_cookie.value());
+    eprintln!("===Cookies=== \n {:?}", token.value());
 
-    assert!(!auth_cookie.value().is_empty());
+    assert!(!token.value().is_empty());
+
     let test_case = serde_json::json!({ "email": user.email.as_ref()});
     let response = app.post_logout(&test_case).await;
+
+    let banned = app.banned_tokens.read().await;
+    assert_eq!(
+        banned.check(token.value().to_string()).await,
+        Err(BannedTokenError::BannedToken)
+    );
     assert_eq!(response.status().as_u16(), 200);
 }
 

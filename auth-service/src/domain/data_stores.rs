@@ -20,3 +20,21 @@ pub enum UserStoreError {
     #[error("invalid user")]
     UnableToCreateUser,
 }
+
+#[derive(thiserror::Error, Debug, PartialEq)]
+pub enum BannedTokenError {
+    #[error("Something went wrong")]
+    UnexpectedError,
+    #[error("Token is banned")]
+    BannedToken,
+    #[error("Invalid input")]
+    InvalidInput,
+    #[error("Mutex lock poisoned")]
+    Poisoned,
+}
+
+#[async_trait::async_trait]
+pub trait BannedTokenStore: Send + Sync {
+    async fn add(&mut self, _data: String) -> Result<(), BannedTokenError>;
+    async fn check(&self, _data: String) -> Result<(), BannedTokenError>;
+}

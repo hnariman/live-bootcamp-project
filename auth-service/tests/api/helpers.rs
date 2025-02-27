@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use auth_service::{
-    app_state::{AppState, UserStoreType},
+    app_state::{AppState, BannedTokensType, UserStoreType},
     domain::{Email, Password, User},
-    services::HashmapUserStore,
+    services::{HashmapUserStore, HashsetBannedTokenStore},
     utils::constants::test,
     Application, ErrorResponse,
 };
@@ -16,6 +16,7 @@ pub struct TestApp {
     pub address: String,
     pub cookie_jar: Arc<Jar>,
     pub http_client: reqwest::Client,
+    pub banned_tokens: BannedTokensType,
 }
 
 impl TestApp {
@@ -37,7 +38,9 @@ impl TestApp {
             .expect("unable to add mock user");
 
         let user_store: UserStoreType = Arc::new(RwLock::new(mock_store));
-        let mock_state = AppState::new(user_store);
+        let banned_tokens: BannedTokensType =
+            Arc::new(RwLock::new(HashsetBannedTokenStore::default()));
+        let mock_state = AppState::new(user_store, banned_tokens.clone());
 
         let app = Application::build(mock_state, test::APP_ADDRESS)
             .await
@@ -58,6 +61,7 @@ impl TestApp {
             address,
             cookie_jar,
             http_client,
+            banned_tokens,
         }
     }
 
